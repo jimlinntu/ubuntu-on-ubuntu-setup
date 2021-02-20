@@ -98,10 +98,51 @@ Note: this tutorial can be executed fully through a remote machine with a VNC cl
         </network>
         ```
 
-* Remember to run `sudo apt install -y openssh-server` in the guest machine. So that you can use `ssh` to connect into it!
+* Remember to run `sudo apt install -y openssh-server` in the guest machine. So that you can `ssh` into it!
 
-* TODO
+* Create a directory with mode `777` (because we will need to give permission for `libvirt-qemu` to write things to your folder.
+    ```
+    $ cd ~
+    $ mkdir ubuntu-virt-shared
+    $ chmod 777 ubuntu-virt-shared
+    ```
 
+    * NOTE: If you think `chmod 777` is too dirty. You can use `sudo setfacl -m libvirt-qemu:rwx ubuntu-virt-shared` to achieve a granular control.
+
+* Paste this section into `<devices> ... </devices>` by `virsh edit ubuntu-virtinstall`:
+    ```
+    <filesystem type='mount' accessmode='mapped'>
+      <driver type='path'/>
+      <source dir='/home/YOUR USER NAME!/ubuntu-virt-shared/'/>
+      <target dir='label'/>
+    </filesystem>
+    ```
+
+* `ssh` to your guest machine and then:
+    ```
+    $ mkdir shared
+    $ sudo mount label ./shared -t 9p -o trans=virtio
+    $ cd shared
+    $ touch test
+    $ ls -al
+    total 12
+    drwxrwxrwx  2        1001        1001 4096  二  20 23:50 .
+    drwxr-xr-x 16 ubuntu-virt ubuntu-virt 4096  二  20 23:47 ..
+    -rw-rw-r--  1 ubuntu-virt ubuntu-virt    0  二  20 23:50 test
+    ```
+
+* Back into your host, you will find a file created by `libvirt-qemu`. Because we use accessmode - `mapped`:
+    ```
+    $ cd ~/ubuntu-virt-shared
+    $ ls -al
+    ...
+    -rw-------  1 libvirt-qemu kvm           0  二  20 23:50 test
+    ```
+
+* In order to make the shared folder permanent, you need to modify your `/etc/fstab/` in your guest machine.
+    ```
+    TODO
+    ```
 
 ## FAQ
 
@@ -113,3 +154,5 @@ Note: this tutorial can be executed fully through a remote machine with a VNC cl
 * <https://superuser.com/questions/341594/qemu-vnc-how-to-use-absolute-pointing-device>
 * <https://serverfault.com/questions/627238/kvm-libvirt-how-to-configure-static-guest-ip-addresses-on-the-virtualisation-ho>
 * <https://bugs.launchpad.net/ubuntu/+source/libvirt/+bug/1784001>: Libvirt `dynamic_ownership`'s behavior
+* <https://lists.gnu.org/archive/html/qemu-devel/2010-05/msg02673.html>: `passthrough` vs `mapped`
+* <https://thoughts.jonathantey.com/how-to-set-up-passthrough-shared-folder-on-kvm/>
