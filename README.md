@@ -3,6 +3,12 @@ In this repo, I recorded (and later verified it by reproducing the steps) the st
 
 Note: this tutorial can be executed fully through a remote machine with a VNC client (I used RealVNC on macOS) except the step when you need to enable the Virtualization depending on your CPU vendor (say Intel or AMD).
 
+The core features you will have after walking through this tutorial:
+
+* Static IP by DHCP mac address binding so that you can easily `ssh` into it.
+* A shared folder between the host and the guest machine.
+* A guest machine that can be accessed by a VNC client (like `VNC Viewer`).
+
 ## Environment
 * Host machine information:
     * `lsb_release -a`:
@@ -47,7 +53,7 @@ Note: this tutorial can be executed fully through a remote machine with a VNC cl
     $ virt-install --virt-type kvm --name "$vm_name"  --ram 2048 --disk "$disk_path",format=qcow2,size=20 --network  network=default --graphics vnc,listen=127.0.0.1 --noautoconsole --os-type=linux --os-variant=ubuntu18.04 --cdrom="$img_path"
     ```
 
-    * NOTE: the image at first should be owned by you. But because of `dynamic_ownership = 1`, you image will later be owned by `libvirt-qemu` and the group of `kvm`. Like this (after the ste:
+    * NOTE: the image at first should be owned by you. But because of `dynamic_ownership = 1` (See `/etc/libvirt/qemu.conf` for more info), you image will later be owned by `libvirt-qemu` and the group of `kvm`. Like this (after the ste:
 
         ```
         $ ls -al ubuntu-20.04.1-desktop-amd64.iso
@@ -107,9 +113,10 @@ Note: this tutorial can be executed fully through a remote machine with a VNC cl
     $ chmod 777 ubuntu-virt-shared
     ```
 
-    * NOTE: If you think `chmod 777` is too dirty. You can use `sudo setfacl -m libvirt-qemu:rwx ubuntu-virt-shared` to achieve a granular control.
+    * NOTE: If you think `chmod 777` is too dirty. You might see other solutions like using `setfacl -m u:libvirt-qemu:rwx ubuntu-virt-shared`. It will NOT work because in the guest machine, the folder may look like this `drwxrwxr-x  2        1001        1001 4096  二  21 20:25 .`. So even as guest user account, you will be treated as `other` which is given `r-x` permission.
 
 * Paste this section into `<devices> ... </devices>` by `virsh edit ubuntu-virtinstall`:
+
     ```
     <filesystem type='mount' accessmode='mapped'>
       <driver type='path'/>
@@ -118,8 +125,11 @@ Note: this tutorial can be executed fully through a remote machine with a VNC cl
     </filesystem>
     ```
 
+    * NOTE: I think the most confusing part is `<target dir='label'/>`. The value in `dir` does not indicate the real path. It is JUST a label!
+
 * `ssh` to your guest machine and then:
     ```
+    $ cd ~
     $ mkdir shared
     $ sudo mount label ./shared -t 9p -o trans=virtio
     $ cd shared
@@ -131,6 +141,8 @@ Note: this tutorial can be executed fully through a remote machine with a VNC cl
     -rw-rw-r--  1 ubuntu-virt ubuntu-virt    0  二  20 23:50 test
     ```
 
+    * NOTE: I set my guest machine's user as `ubuntu-virt`. This may depends on your setting.
+
 * Back into your host, you will find a file created by `libvirt-qemu`. Because we use accessmode - `mapped`:
     ```
     $ cd ~/ubuntu-virt-shared
@@ -139,10 +151,18 @@ Note: this tutorial can be executed fully through a remote machine with a VNC cl
     -rw-------  1 libvirt-qemu kvm           0  二  20 23:50 test
     ```
 
-* In order to make the shared folder permanent, you need to modify your `/etc/fstab/` in your guest machine.
+* In order to make the shared folder permanent, you need to add this line into your `/etc/fstab` in your guest machine.
     ```
-    TODO
+    label    /home/ubuntu-virt/shared/      9p  trans=virtio,rw    0   0
     ```
+* Add these lines inside `/etc/initramfs-tools/modules` and then update the initramfs by `sudo update-initramfs -u`:
+    ```
+    9p
+    9pnet
+    9pnet_virtio
+    ```
+
+* That's all! You've successfully set up a virtual machine!
 
 ## FAQ
 
@@ -156,3 +176,5 @@ Note: this tutorial can be executed fully through a remote machine with a VNC cl
 * <https://bugs.launchpad.net/ubuntu/+source/libvirt/+bug/1784001>: Libvirt `dynamic_ownership`'s behavior
 * <https://lists.gnu.org/archive/html/qemu-devel/2010-05/msg02673.html>: `passthrough` vs `mapped`
 * <https://thoughts.jonathantey.com/how-to-set-up-passthrough-shared-folder-on-kvm/>
+* <https://www.linux-kvm.org/page/9p_virtio>
+* <https://codingbee.net/rhcsa/rhcsa-the-acls-mask-setting>: how to use `setfacl`. But it turns out not wokring.
