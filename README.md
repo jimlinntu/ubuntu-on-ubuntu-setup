@@ -165,6 +165,23 @@ The core features you will have after walking through this tutorial:
 * That's all! You've successfully set up a virtual machine!
 
 ## FAQ
+* Why does my VNC client (VNC Viewer by RealVNC) show two cursors (one with small dot and one with a normal cursor)?
+    * After my tweaking, this is caused by the default video card `cirrus`. By deleting the `<video>...</video>` section and adding these lines into `virsh edit ubuntu-virtinstall`, two cursors issue will disappear. It seems to be `cirrus` problem:
+        ```
+        <video>
+          <model type='qxl' ram='65536' vram='65536' vgamem='16384' heads='1' primary='yes'/>
+        </video>
+        ```
+
+        * NOTE: Or I think you can add `--video qxl` when you run `virt-install`.
+        * Mine: `cirrus` section looks like this:
+            ```
+            <video>
+              <model type='cirrus' vram='16384' heads='1' primary='yes'/>
+              <alias name='video0'/>
+              <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0'/>
+            </video>
+            ```
 
 ## References
 * [https://forums.tomshardware.com/threads/what-is-svm-mode-in-bios.3415554/](https://forums.tomshardware.com/threads/what-is-svm-mode-in-bios.3415554/)
